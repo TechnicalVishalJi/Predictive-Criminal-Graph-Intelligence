@@ -6,11 +6,9 @@ import axios from 'axios'
 const FLASK_API = 'http://127.0.0.1:5000'
 
 const getNodeColor = (node, isFractured) => {
-  if (isFractured) return '#101015' // Arrested nodes turn stark dark
+  if (isFractured) return '#101015'
   if (node.type === 'Account') return '#f59e0b'
   if (node.type === 'Device') return '#a78bfa'
-  
-  // Use dynamic_risk first if algorithm updated it, else fallback to standard risk
   const risk = node.dynamic_risk !== undefined ? node.dynamic_risk : (node.risk_score || 0)
   if (risk > 75) return '#ff003c'
   if (risk > 40) return '#ff8c00'
@@ -18,15 +16,42 @@ const getNodeColor = (node, isFractured) => {
 }
 
 const getNodeSize = (node, isFractured) => {
-  if (isFractured) return 2 // Shrink fractured nodes
+  if (isFractured) return 2
   if (node.type === 'Account') return 4
   if (node.type === 'Device') return 3
   const risk = node.dynamic_risk !== undefined ? node.dynamic_risk : (node.risk_score || 0)
   return 3 + risk / 20
 }
 
+// BFS up to 2 hops from selectedNodeId — returns map of { nodeId -> hopDistance }
+function buildHopMap(selectedNodeId, links) {
+  if (!selectedNodeId) return {}
+  const adj = {}
+  links.forEach(link => {
+    const s = typeof link.source === 'object' ? link.source.id : link.source
+    const t = typeof link.target === 'object' ? link.target.id : link.target
+    if (!adj[s]) adj[s] = []
+    if (!adj[t]) adj[t] = []
+    adj[s].push(t)
+    adj[t].push(s)
+  })
+  const hopMap = { [selectedNodeId]: 0 }
+  const queue = [selectedNodeId]
+  while (queue.length) {
+    const cur = queue.shift()
+    if (hopMap[cur] >= 2) continue
+    for (const neighbor of (adj[cur] || [])) {
+      if (hopMap[neighbor] === undefined) {
+        hopMap[neighbor] = hopMap[cur] + 1
+        queue.push(neighbor)
+      }
+    }
+  }
+  return hopMap
+}
+
 export default function GraphMap({ 
-  onNodeClick, searchQuery, onDataLoaded, highlightedNodes,
+  onNodeClick, onBackgroundClick, searchQuery, onDataLoaded, highlightedNodes,
   predictedLinks = [], fracturedNodes = new Set(), selectedNodeId
 }) {
   const fgRef = useRef()
@@ -54,21 +79,20 @@ export default function GraphMap({
       .finally(() => setLoading(false))
   }, [onDataLoaded])
 
-  // Tune d3-force-3d simulation once data is loaded:
-  // - Remove center gravity so isolated clusters don't all pull toward origin
-  // - Crank up many-body repulsion so separate clusters push apart
+  // Tune d3-force simulation once data loads:
+  // Remove center gravity and amplify repulsion so isolated clusters spread apart
   useEffect(() => {
     if (!fgRef.current || graphData.nodes.length === 0) return
     const fg = fgRef.current
-    fg.d3Force('center', null)           // remove center-pull
-    fg.d3Force('charge').strength(-220)  // stronger repulsion between all nodes
+    fg.d3Force('center', null)
+    fg.d3Force('charge').strength(-250)
     if (fg.d3Force('link')) {
-      fg.d3Force('link').distance(60).strength(0.5) // relax link pull a bit
+      fg.d3Force('link').distance(70).strength(0.4)
     }
-    fg.d3ReheatSimulation()              // restart sim with new forces
+    fg.d3ReheatSimulation()
   }, [graphData])
 
-  // Search effect
+  // Search: fly camera to matching node
   useEffect(() => {
     if (!searchQuery || !fgRef.current || graphData.nodes.length === 0) return
     const node = graphData.nodes.find(n =>
@@ -83,7 +107,7 @@ export default function GraphMap({
     }
   }, [searchQuery, graphData])
 
-  // Memoize the combined graph topology including temporal algorithmic predictions
+  // Memoize combined graph (real + predicted links)
   const combinedGraphData = useMemo(() => {
     const virtualLinks = predictedLinks.map(p => ({
       source: p.source,
@@ -97,60 +121,89 @@ export default function GraphMap({
     }
   }, [graphData, predictedLinks])
 
-  // Derive which nodes are involved in a prediction right now
   const predictedNodesSet = useMemo(() => {
     const s = new Set()
     predictedLinks.forEach(p => { s.add(p.source); s.add(p.target) })
     return s
   }, [predictedLinks])
 
+  // BFS hop map — recalculated whenever selected node or links change
+  const hopMap = useMemo(() => {
+    return buildHopMap(selectedNodeId, combinedGraphData.links)
+  }, [selectedNodeId, combinedGraphData.links])
+
+  const nodeFocusActive = selectedNodeId && Object.keys(hopMap).length > 0
 
   const nodeThreeObject = useCallback((node) => {
     const isFractured = fracturedNodes.has(node.id)
     const isHighlighted = highlightedNodes.has(node.id) && !isFractured
     const isPredicted = predictedNodesSet.has(node.id)
     const isSelected = selectedNodeId === node.id
-    
+
+    // Focus mode: derive opacity/dim based on hop distance
+    const hop = hopMap[node.id]
+    const inFocus = nodeFocusActive && hop !== undefined
+    const isFaded = nodeFocusActive && hop === undefined  // >2 hops away
+
     let color = isHighlighted ? '#ffffff' : getNodeColor(node, isFractured)
-    if (isPredicted) color = '#eab308' 
-    if (isSelected) color = '#ffffff' // Override with Bright White if actively clicked/selected
+    if (isPredicted) color = '#eab308'
+    if (isSelected) color = '#ffffff'
+    if (isFaded) color = '#23232e'  // Nearly black when out of focus
 
     let size = getNodeSize(node, isFractured)
-    if (isPredicted) size *= 1.6 
-    if (isSelected && !isPredicted) size *= 1.3 // Ensure clicked nodes stand out slightly
+    if (isPredicted) size *= 1.6
+    if (isSelected && !isPredicted) size *= 1.3
+
+    let opacity = isFractured ? 0.3 : 0.95
+    if (isFaded) opacity = 0.15
+    else if (inFocus && hop === 2) opacity = 0.55
 
     const geometry = new THREE.SphereGeometry(size, 16, 16)
-    
-    // Tactically intensify the materials 
     const isEmissive = isSelected || isPredicted || isHighlighted
     const material = new THREE.MeshLambertMaterial({
       color,
       emissive: color,
-      emissiveIntensity: isFractured ? 0.1 : (isEmissive ? 2 : 0.5),
+      emissiveIntensity: isFractured ? 0.1 : isFaded ? 0.05 : (isEmissive ? 2 : 0.5),
       transparent: true,
-      opacity: isFractured ? 0.3 : 0.95,
-      wireframe: isFractured // cool shattered effect
+      opacity,
+      wireframe: isFractured
     })
     const mesh = new THREE.Mesh(geometry, material)
 
-    // Intense tracker Halo for active selections
-    if (!isFractured) {
+    if (!isFractured && !isFaded) {
       const haloGeo = new THREE.SphereGeometry(size * 1.8, 16, 16)
-      const haloMat = new THREE.MeshLambertMaterial({ 
-        color, 
-        transparent: true, 
+      const haloMat = new THREE.MeshLambertMaterial({
+        color,
+        transparent: true,
         opacity: isSelected ? 0.4 : (isPredicted ? 0.3 : 0.12)
       })
       mesh.add(new THREE.Mesh(haloGeo, haloMat))
     }
-    
+
     return mesh
-  }, [highlightedNodes, fracturedNodes, predictedNodesSet, selectedNodeId])
+  }, [highlightedNodes, fracturedNodes, predictedNodesSet, selectedNodeId, hopMap, nodeFocusActive])
+
+  // Fix zoom-on-click: capture camera position before react-force-graph-3d
+  // auto-zooms, then restore it immediately after
+  const handleNodeClickInternal = useCallback((node) => {
+    if (fgRef.current) {
+      const cam = fgRef.current.cameraPosition()
+      setTimeout(() => {
+        if (fgRef.current) {
+          fgRef.current.cameraPosition(
+            { x: cam.x, y: cam.y, z: cam.z },
+            undefined,
+            0   // instant, no animation
+          )
+        }
+      }, 20)
+    }
+    onNodeClick(node)
+  }, [onNodeClick])
 
   const getTooltip = (node) => {
-    // Hide tooltips for arrested nodes simulating disruption
     if (fracturedNodes.has(node.id)) return `<div style="color:#ff003c;font-family:monospace">NODE DISRUPTED (ARRESTED)</div>`
-    
+
     const typeLabel = {
       Person: '🕵️ Suspect',
       Account: '🏦 Bank Account',
@@ -211,30 +264,44 @@ export default function GraphMap({
         graphData={combinedGraphData}
         nodeThreeObject={nodeThreeObject}
         nodeThreeObjectExtend={false}
-        onNodeClick={onNodeClick}
-        
-        // Link styling logic
+        onNodeClick={handleNodeClickInternal}
+        onBackgroundClick={onBackgroundClick}
+
         linkColor={(link) => {
-          // Hide links connected to fractured nodes
           const srcId = typeof link.source === 'object' ? link.source.id : link.source
           const tgtId = typeof link.target === 'object' ? link.target.id : link.target
           if (fracturedNodes.has(srcId) || fracturedNodes.has(tgtId)) return 'rgba(0,0,0,0)'
-          
-          if (link.type === 'PREDICTED') return '#eab308' // Solid vibrant Yellow
-          if (link.type === 'OWNS_ACCOUNT') return 'rgba(245,158,11,0.3)'
-          if (link.type === 'USES_DEVICE') return 'rgba(167,139,250,0.3)'
-          return 'rgba(255,255,255,0.1)'
+
+          // Focus mode: dim edges not in 1-hop
+          if (nodeFocusActive) {
+            const srcHop = hopMap[srcId]
+            const tgtHop = hopMap[tgtId]
+            if (srcHop === undefined || tgtHop === undefined) return 'rgba(255,255,255,0.03)'
+          }
+
+          if (link.type === 'PREDICTED') return '#eab308'
+          if (link.type === 'OWNS_ACCOUNT') return 'rgba(245,158,11,0.4)'
+          if (link.type === 'USES_DEVICE') return 'rgba(167,139,250,0.4)'
+          return 'rgba(255,255,255,0.15)'
         }}
-        linkWidth={(link) => link.type === 'PREDICTED' ? 2.5 : 0.8}
-        linkOpacity={(link) => link.type === 'PREDICTED' ? 1.0 : 0.6}
+        linkWidth={(link) => {
+          if (link.type === 'PREDICTED') return 2.5
+          if (!nodeFocusActive) return 0.8
+          const srcId = typeof link.source === 'object' ? link.source.id : link.source
+          const tgtId = typeof link.target === 'object' ? link.target.id : link.target
+          const srcHop = hopMap[srcId]
+          const tgtHop = hopMap[tgtId]
+          if (srcHop === undefined || tgtHop === undefined) return 0.2
+          return 1.2
+        }}
+        linkOpacity={(link) => link.type === 'PREDICTED' ? 1.0 : 0.7}
         linkLineDash={(link) => link.type === 'PREDICTED' ? [3, 2] : null}
-        
-        // Flow simulation for predictive algorithms
+
         linkDirectionalParticles={(link) => link.type === 'PREDICTED' ? 5 : 0}
         linkDirectionalParticleWidth={(link) => link.type === 'PREDICTED' ? 3 : 0}
         linkDirectionalParticleColor={() => '#ffffff'}
         linkDirectionalParticleSpeed={(link) => link.type === 'PREDICTED' ? 0.015 : 0}
-        
+
         backgroundColor="#07070a"
         showNavInfo={false}
         nodeLabel={getTooltip}

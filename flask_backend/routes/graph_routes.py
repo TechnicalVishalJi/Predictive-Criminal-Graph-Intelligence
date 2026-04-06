@@ -120,7 +120,7 @@ def get_full_network():
 @graph_bp.route("/target/<person_id>", methods=["GET"])
 def get_target(person_id):
     """
-    Returns 1-hop data for a specific person node.
+    Returns 1-hop data for a specific person node, including criminal FIR records.
     """
     try:
         conn = get_tg_connection()
@@ -132,6 +132,8 @@ def get_target(person_id):
         edges = conn.getEdges("Person", person_id)
 
         connections = {"accounts": [], "devices": [], "associates": []}
+        fir_event_ids = []
+
         for e in edges:
             etype = e.get("e_type", "")
             tgt = e.get("to_id", "")
@@ -141,16 +143,154 @@ def get_target(person_id):
                 connections["devices"].append(tgt)
             elif etype == "ASSOCIATES_WITH":
                 connections["associates"].append(tgt)
+            elif etype == "INVOLVED_IN":
+                fir_event_ids.append(tgt)
+
+        # Fetch criminal record details from Event vertices
+        criminal_records = []
+        for evt_id in fir_event_ids:
+            try:
+                evt_vertices = conn.getVerticesById("Event", [evt_id])
+                if evt_vertices:
+                    ev = evt_vertices[0].get("attributes", {})
+                    criminal_records.append({
+                        "fir_number": ev.get("fir_number", evt_id.upper()),
+                        "crime_type": ev.get("crime_type", "Unknown"),
+                        "date": ev.get("date", "N/A"),
+                        "description": ev.get("description", ""),
+                    })
+            except Exception:
+                pass
 
         return jsonify({
             "id": person_id,
             "full_name": attrs.get("full_name", "Unknown"),
             "risk_score": attrs.get("risk_score", 0),
             "connections": connections,
+            "criminal_records": criminal_records,
         }), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
+
+@graph_bp.route("/timeline/<person_id>", methods=["GET"])
+def get_timeline(person_id):
+    """
+    Generates a realistic 12-month activity timeline for a suspect,
+    derived from their existing TigerGraph connections.
+    """
+    import random
+    from datetime import datetime, timedelta
+
+    MEANS_BY_EDGE = {
+        "OWNS_ACCOUNT": ["Bank Account Opened", "Financial Transaction Detected", "Wire Transfer Flagged"],
+        "USES_DEVICE": ["IMEI Registration", "Burner Phone Activity", "SIM Card Swap Detected"],
+        "ASSOCIATES_WITH": ["Surveillance Sighting", "Known Contact Established", "Call Record Match"],
+        "INVOLVED_IN": ["FIR Filed", "Arrested & Released", "Named in Chargesheet"],
+    }
+
+    try:
+        conn = get_tg_connection()
+        vertex = conn.getVerticesById("Person", [person_id])
+        if not vertex:
+            return jsonify({"error": "Person not found"}), 404
+
+        edges = conn.getEdges("Person", person_id)
+
+        now = datetime.now()
+        one_year_ago = now - timedelta(days=365)
+        events = []
+
+        # Seed random with person_id so timeline is deterministic per suspect
+        rng = random.Random(hash(person_id) % (2**32))
+
+        for e in edges:
+            etype = e.get("e_type", "")
+            tgt = e.get("to_id", "")
+            if etype not in MEANS_BY_EDGE:
+                continue
+
+            means = rng.choice(MEANS_BY_EDGE[etype])
+            days_ago = rng.randint(0, 365)
+            event_date = one_year_ago + timedelta(days=days_ago)
+
+            events.append({
+                "date": event_date.strftime("%Y-%m-%d"),
+                "edge_type": etype,
+                "means": means,
+                "target_id": tgt,
+                "note": _generate_note(etype, tgt, means),
+            })
+
+        # Sort chronologically
+        events.sort(key=lambda x: x["date"])
+        return jsonify({"status": "success", "timeline": events}), 200
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+def _generate_note(etype, target_id, means):
+    short_id = target_id.split("_")[-1] if "_" in target_id else target_id
+    if etype == "OWNS_ACCOUNT":
+        return f"{means} — linked to account •••{short_id[:6]}"
+    if etype == "USES_DEVICE":
+        return f"{means} — IMEI/phone {short_id[:8]}"
+    if etype == "ASSOCIATES_WITH":
+        return f"{means} — with suspect ID {short_id}"
+    if etype == "INVOLVED_IN":
+        return f"{means} — Case No. {target_id.split('_')[-1].upper()}"
+    return means
+
+
+from flask import request as flask_request
+import uuid
+
+@graph_bp.route("/add_target", methods=["POST"])
+def add_target():
+    """
+    Dynamically inserts a new suspect into TigerGraph from the FIR Intake form.
+    Optionally links them to an existing gang member.
+    """
+    try:
+        data = flask_request.json or {}
+        full_name = data.get("full_name", "Unknown Suspect").strip()
+        risk_score = float(data.get("risk_score", 30))
+        gang_id = data.get("gang_id", "")
+        intake_note = data.get("intake_note", "")
+
+        # Generate deterministic-looking ID
+        new_id = f"person_INTAKE_{uuid.uuid4().hex[:8].upper()}"
+
+        conn = get_tg_connection()
+        conn.upsertVertex("Person", new_id, {
+            "full_name": full_name,
+            "risk_score": round(risk_score, 1),
+        })
+
+        # If a known gang was specified, link to one existing member of that gang
+        if gang_id:
+            try:
+                existing = conn.getVertices("Person")
+                gang_members = [p["v_id"] for p in existing if gang_id in p["v_id"] and p["v_id"] != new_id]
+                if gang_members:
+                    import random
+                    anchor = random.choice(gang_members[:5])
+                    conn.upsertEdge("Person", new_id, "ASSOCIATES_WITH", "Person", anchor)
+            except Exception:
+                pass
+
+        return jsonify({
+            "status": "success",
+            "id": new_id,
+            "full_name": full_name,
+            "risk_score": risk_score,
+            "type": "Person",
+            "label": full_name,
+            "intake_note": intake_note,
+        }), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 from services.analytics import predict_future_links, simulate_arrest_disruption, calculate_dynamic_risk
 

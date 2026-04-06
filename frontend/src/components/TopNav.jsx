@@ -1,6 +1,6 @@
-import { Search, Shield } from 'lucide-react'
+import { Search, Shield, UserPlus } from 'lucide-react'
 
-export default function TopNav({ searchQuery, setSearchQuery, graphData }) {
+export default function TopNav({ searchQuery, setSearchQuery, graphData, onOpenIntake }) {
   const highRisk = graphData.nodes?.filter(n => n.risk_score > 75).length || 0
 
   return (
@@ -27,12 +27,30 @@ export default function TopNav({ searchQuery, setSearchQuery, graphData }) {
         />
       </div>
 
-      {highRisk > 0 && (
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--neon-magenta)', fontSize: '13px' }}>
-          <Shield size={16} />
-          <span>{highRisk} HIGH RISK</span>
-        </div>
-      )}
+      <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+        {highRisk > 0 && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--neon-magenta)', fontSize: '13px' }}>
+            <Shield size={16} />
+            <span>{highRisk} HIGH RISK</span>
+          </div>
+        )}
+        <button
+          onClick={onOpenIntake}
+          style={{
+            display: 'flex', alignItems: 'center', gap: '8px',
+            padding: '8px 16px', borderRadius: '20px',
+            background: 'rgba(255,0,60,0.1)',
+            border: '1px solid rgba(255,0,60,0.4)',
+            color: '#ff003c', fontSize: '12px', fontWeight: 700,
+            cursor: 'pointer', letterSpacing: '0.5px',
+            transition: 'all 0.2s',
+          }}
+          onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,0,60,0.2)'}
+          onMouseLeave={e => e.currentTarget.style.background = 'rgba(255,0,60,0.1)'}
+        >
+          <UserPlus size={14} /> Register Target
+        </button>
+      </div>
     </nav>
   )
 }

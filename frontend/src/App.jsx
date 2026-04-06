@@ -5,12 +5,14 @@ import EntityInspector from './components/EntityInspector'
 import AICopilot from './components/AICopilot'
 import TopNav from './components/TopNav'
 import StatsBar from './components/StatsBar'
+import IntakeModal from './components/IntakeModal'
 
 function App() {
   const [selectedNode, setSelectedNode] = useState(null)
   const [searchQuery, setSearchQuery] = useState('')
   const [graphData, setGraphData] = useState({ nodes: [], links: [] })
   const [highlightedNodes, setHighlightedNodes] = useState(new Set())
+  const [showIntake, setShowIntake] = useState(false)
   
   // Analytics State
   const [predictedLinks, setPredictedLinks] = useState([])
@@ -18,9 +20,12 @@ function App() {
 
   const handleNodeClick = useCallback((node) => {
     setSelectedNode(node)
-    // Clear analytic states on new selection to keep UI clean
     setPredictedLinks([])
-    // We intentionally DO NOT clear fracturedNodes here, so the user can inspect the fractured network
+  }, [])
+
+  const handleBackgroundClick = useCallback(() => {
+    setSelectedNode(null)
+    setPredictedLinks([])
   }, [])
 
   const handleHighlight = useCallback((nodeIds) => {
@@ -55,6 +60,22 @@ function App() {
     }
   }, [selectedNode])
 
+  // Handle new target intake: inject node into live graph and auto-select it
+  const handleIntakeSuccess = useCallback((newNodeData) => {
+    setShowIntake(false)
+    const newNode = {
+      id: newNodeData.id,
+      type: 'Person',
+      label: newNodeData.full_name,
+      risk_score: newNodeData.risk_score,
+      x: Math.random() * 200 - 100,
+      y: Math.random() * 200 - 100,
+      z: Math.random() * 200 - 100,
+    }
+    setGraphData(prev => ({ ...prev, nodes: [...prev.nodes, newNode] }))
+    setSelectedNode(newNode)
+  }, [])
+
   return (
     <div className="dashboard-container">
       <div className="starfield" />
@@ -63,12 +84,15 @@ function App() {
         searchQuery={searchQuery}
         setSearchQuery={setSearchQuery}
         graphData={graphData}
+        onOpenIntake={() => setShowIntake(true)}
       />
+
 
       <StatsBar graphData={graphData} />
 
       <GraphMap
         onNodeClick={handleNodeClick}
+        onBackgroundClick={handleBackgroundClick}
         searchQuery={searchQuery}
         onDataLoaded={setGraphData}
         highlightedNodes={highlightedNodes}
@@ -86,6 +110,13 @@ function App() {
       />
 
       <AICopilot onHighlight={handleHighlight} />
+
+      {showIntake && (
+        <IntakeModal
+          onClose={() => setShowIntake(false)}
+          onSuccess={handleIntakeSuccess}
+        />
+      )}
     </div>
   )
 }

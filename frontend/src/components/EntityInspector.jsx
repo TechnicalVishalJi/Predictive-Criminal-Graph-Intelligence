@@ -1,6 +1,7 @@
-import { User, AlertTriangle, CreditCard, Smartphone, Users, Zap, Crosshair, TrendingUp, Download } from 'lucide-react'
+import { User, AlertTriangle, CreditCard, Smartphone, Users, Zap, Crosshair, TrendingUp, Download, FileText, Clock } from 'lucide-react'
 import { useState, useEffect } from 'react'
 import axios from 'axios'
+import ActivityTimeline from './ActivityTimeline'
 
 const FLASK_API = 'http://127.0.0.1:5000'
 
@@ -22,10 +23,35 @@ export default function EntityInspector({
 
   const [loadingAction, setLoadingAction] = useState(null)
   const [disruptionResult, setDisruptionResult] = useState(null)
+  const [criminalRecords, setCriminalRecords] = useState([])
+  const [timeline, setTimeline] = useState([])
+  const [timelineLoading, setTimelineLoading] = useState(false)
 
-  // Clear local mathematical result state whenever the clicked node changes
+  // Clear all local state when selected node changes
   useEffect(() => {
     setDisruptionResult(null)
+    setCriminalRecords([])
+    setTimeline([])
+
+    if (!node || node.type !== 'Person') return
+
+    // Fetch criminal records + 1-hop data
+    axios.get(`${FLASK_API}/api/target/${node.id}`)
+      .then(res => {
+        if (res.data.criminal_records) {
+          setCriminalRecords(res.data.criminal_records)
+        }
+      })
+      .catch(() => {})
+
+    // Fetch 12-month activity timeline
+    setTimelineLoading(true)
+    axios.get(`${FLASK_API}/api/timeline/${node.id}`)
+      .then(res => {
+        if (res.data.timeline) setTimeline(res.data.timeline)
+      })
+      .catch(() => {})
+      .finally(() => setTimelineLoading(false))
   }, [node])
   
   // Compute 1-hop neighbors from graph data
@@ -155,6 +181,36 @@ export default function EntityInspector({
             </div>
           )}
 
+          {/* Criminal Records */}
+          {node.type === 'Person' && criminalRecords.length > 0 && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              <div style={{ borderTop: '1px solid var(--glass-border)', paddingTop: '12px', fontSize: '10px', color: '#ff003c', textTransform: 'uppercase', letterSpacing: '1px', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <FileText size={11} /> Criminal Records ({criminalRecords.length})
+              </div>
+              {criminalRecords.map((rec, i) => (
+                <div key={i} style={{
+                  padding: '10px 12px', borderRadius: '8px',
+                  background: 'rgba(255,0,60,0.05)',
+                  border: '1px solid rgba(255,0,60,0.15)',
+                  display: 'flex', flexDirection: 'column', gap: '4px',
+                }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ fontSize: '10px', fontWeight: 800, color: '#ff003c', letterSpacing: '0.5px' }}>
+                      {rec.crime_type}
+                    </span>
+                    <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>{rec.date}</span>
+                  </div>
+                  <div style={{ fontSize: '10px', color: 'var(--text-muted)', fontFamily: 'monospace' }}>
+                    #{rec.fir_number}
+                  </div>
+                  <div style={{ fontSize: '11px', color: 'var(--text-primary)', lineHeight: 1.4 }}>
+                    {rec.description}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
           {/* Node attributes */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
             <InfoRow label="ID" value={node.id} />
@@ -186,6 +242,16 @@ export default function EntityInspector({
               </div>
             )
           })()}
+
+          {/* 12-Month Activity Timeline */}
+          {node.type === 'Person' && (timeline.length > 0 || timelineLoading) && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              <div style={{ borderTop: '1px solid var(--glass-border)', paddingTop: '12px', fontSize: '10px', color: '#00f0ff', textTransform: 'uppercase', letterSpacing: '1px', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <Clock size={11} /> 12-Month Activity Intelligence
+              </div>
+              <ActivityTimeline events={timeline} loading={timelineLoading} />
+            </div>
+          )}
 
           {/* ADVANCED ANALYTICS CONTROLS */}
           {node.type === 'Person' && (
