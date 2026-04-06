@@ -218,6 +218,22 @@ export default function EntityInspector({
             {node.phone_number && <InfoRow label="Phone" value={node.phone_number} icon={<Smartphone size={13} />} />}
           </div>
 
+          {/* Intake Note (immediate display before TigerGraph FIR fetch completes) */}
+          {node.intake_note && (
+            <div style={{
+              padding: '10px 12px', borderRadius: '8px',
+              background: 'rgba(234,179,8,0.06)',
+              border: '1px solid rgba(234,179,8,0.2)',
+            }}>
+              <div style={{ fontSize: '10px', color: '#eab308', fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '5px' }}>
+                📋 Field Intake Note
+              </div>
+              <div style={{ fontSize: '12px', color: 'var(--text-primary)', lineHeight: 1.5 }}>
+                {node.intake_note}
+              </div>
+            </div>
+          )}
+
           {/* 1-hop connections */}
           {node.type === 'Person' && (neighbors.associates.length > 0 || neighbors.accounts.length > 0 || neighbors.devices.length > 0) && (() => {
             const uniqueAssociates = [...new Map(neighbors.associates.map(n => [n.id, n])).values()]

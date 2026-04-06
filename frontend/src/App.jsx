@@ -13,6 +13,7 @@ function App() {
   const [graphData, setGraphData] = useState({ nodes: [], links: [] })
   const [highlightedNodes, setHighlightedNodes] = useState(new Set())
   const [showIntake, setShowIntake] = useState(false)
+  const [graphRefreshToken, setGraphRefreshToken] = useState(0)
   
   // Analytics State
   const [predictedLinks, setPredictedLinks] = useState([])
@@ -60,20 +61,17 @@ function App() {
     }
   }, [selectedNode])
 
-  // Handle new target intake: inject node into live graph and auto-select it
+  // Handle new target intake: re-fetch entire graph from TigerGraph and auto-select new node
   const handleIntakeSuccess = useCallback((newNodeData) => {
     setShowIntake(false)
-    const newNode = {
+    setGraphRefreshToken(prev => prev + 1)
+    setSelectedNode({
       id: newNodeData.id,
       type: 'Person',
       label: newNodeData.full_name,
       risk_score: newNodeData.risk_score,
-      x: Math.random() * 200 - 100,
-      y: Math.random() * 200 - 100,
-      z: Math.random() * 200 - 100,
-    }
-    setGraphData(prev => ({ ...prev, nodes: [...prev.nodes, newNode] }))
-    setSelectedNode(newNode)
+      intake_note: newNodeData.intake_note || '',
+    })
   }, [])
 
   return (
@@ -99,6 +97,7 @@ function App() {
         predictedLinks={predictedLinks}
         fracturedNodes={fracturedNodes}
         selectedNodeId={selectedNode?.id}
+        refreshToken={graphRefreshToken}
       />
 
       <EntityInspector 

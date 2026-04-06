@@ -52,7 +52,7 @@ function buildHopMap(selectedNodeId, links) {
 
 export default function GraphMap({ 
   onNodeClick, onBackgroundClick, searchQuery, onDataLoaded, highlightedNodes,
-  predictedLinks = [], fracturedNodes = new Set(), selectedNodeId
+  predictedLinks = [], fracturedNodes = new Set(), selectedNodeId, refreshToken = 0
 }) {
   const fgRef = useRef()
   const [graphData, setGraphData] = useState({ nodes: [], links: [] })
@@ -77,7 +77,7 @@ export default function GraphMap({
         setError(`Flask API unreachable: ${err.message}. Make sure python app.py is running on port 5000.`)
       })
       .finally(() => setLoading(false))
-  }, [onDataLoaded])
+  }, [onDataLoaded, refreshToken])  // refreshToken increment triggers a re-fetch
 
   // Tune d3-force simulation once data loads:
   // Remove center gravity and amplify repulsion so isolated clusters spread apart

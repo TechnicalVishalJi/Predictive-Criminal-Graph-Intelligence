@@ -280,6 +280,23 @@ def add_target():
             except Exception:
                 pass
 
+        # Persist intake note as an Event (FIR) vertex so it shows in Criminal Records sidebar
+        fir_id = None
+        if intake_note and intake_note.strip():
+            from datetime import datetime
+            fir_id = f"fir_INTAKE_{uuid.uuid4().hex[:8].upper()}"
+            today = datetime.now().strftime("%Y-%m-%d")
+            try:
+                conn.upsertVertex("Event", fir_id, {
+                    "fir_number": fir_id,
+                    "crime_type": "Field Intake Registration",
+                    "date": today,
+                    "description": intake_note.strip(),
+                })
+                conn.upsertEdge("Person", new_id, "INVOLVED_IN", "Event", fir_id)
+            except Exception:
+                fir_id = None  # Event schema may not exist yet — skip silently
+
         return jsonify({
             "status": "success",
             "id": new_id,
@@ -288,6 +305,7 @@ def add_target():
             "type": "Person",
             "label": full_name,
             "intake_note": intake_note,
+            "fir_created": fir_id is not None,
         }), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 500
