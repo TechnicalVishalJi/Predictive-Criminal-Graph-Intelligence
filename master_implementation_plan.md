@@ -52,7 +52,7 @@ An upgraded, enterprise-grade architecture for an Aatmanirbhar (homegrown) inves
 ## Technical Stack & Architecture
 
 ### 1. Database Layer
-*   **TigerGraph Cloud (v4.2+)**: Cloud-hosted instance for effortless demoing and high availability.
+*   **TigerGraph Community Edition**: Local Docker instance for effortless demoing and high availability.
 
 ### 2. Backend API
 *   **Framework**: Python `Flask`.

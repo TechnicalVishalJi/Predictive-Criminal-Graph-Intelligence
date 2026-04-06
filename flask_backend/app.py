@@ -13,8 +13,8 @@ CORS(app)
 from routes.graph_routes import graph_bp
 from routes.ai_routes import ai_bp
 
-app.register_blueprint(graph_bp, url_prefix="/api/graph")
-app.register_blueprint(ai_bp, url_prefix="/api/ai")
+app.register_blueprint(graph_bp, url_prefix="/api")
+app.register_blueprint(ai_bp, url_prefix="/api")
 
 @app.route("/", methods=["GET"])
 def health_check():

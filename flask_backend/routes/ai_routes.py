@@ -35,27 +35,47 @@ def search_suspects():
 @ai_bp.route("/chat", methods=["POST"])
 def graphrag_chat():
     """
-    Enterprise GraphRAG Chat using Groq Meta-Llama
+    GraphRAG Chat — React frontend sends { message } and expects { response, highlight_nodes }.
     """
     data = request.json
-    user_query = data.get("query", "")
-    
+    # Accept both 'message' (from React) and 'query' (from other clients)
+    user_query = data.get("message") or data.get("query", "")
+
+    if not user_query:
+        return jsonify({"response": "Please enter a question.", "highlight_nodes": []}), 200
+
     try:
-        # Step 1: Translate Question to GSQL
-        schema_dump = "Vertices: Person, Account, Device. Edges: TRANSFERRED_MONEY, CALLED"
-        gsql_prompt = f"Given schema: {schema_dump}. Write a GSQL logic approach to: {user_query}. Only return the concept."
-        gsql_plan = generate_groq_completion(prompt=gsql_prompt)
-        
-        # Step 2: In a real app we run the resulting logic across TigerGraph DB
-        mock_db_result = "{'transfers': 5, 'origin': 'person_1', 'dest': 'acc_99'}"
-        
-        # Step 3: Summarize via Groq
-        summary_prompt = f"Graph returned: {mock_db_result}. Summarize this for the investigator naturally."
-        final_answer = generate_groq_completion(prompt=summary_prompt)
-        
-        return jsonify({"status": "success", "answer": final_answer}), 200
+        # Step 1: Fetch real graph context from TigerGraph
+        conn = get_tg_connection()
+        persons = conn.getVertices("Person")
+        graph_context = "\n".join([
+            f"- {p['v_id']}: {p['attributes'].get('full_name','?')} (risk={p['attributes'].get('risk_score',0):.1f})"
+            for p in persons[:30]  # Cap to avoid token overflow
+        ])
+
+        schema_info = "Graph: Person(full_name, risk_score), Account(bank_name), Device(phone_number). Edges: ASSOCIATES_WITH, OWNS_ACCOUNT, USES_DEVICE."
+
+        # Step 2: Ask Groq with real context
+        system_prompt = (
+            "You are NEXUS, an elite criminal intelligence AI analyzing a graph database of suspects, "
+            "bank accounts, and devices. Be concise, analytical, and help investigators identify threats. "
+            "When referencing suspects, use their person IDs from the context."
+        )
+        prompt = (
+            f"Schema: {schema_info}\n\n"
+            f"Current suspects in graph:\n{graph_context}\n\n"
+            f"Investigator question: {user_query}"
+        )
+
+        answer = generate_groq_completion(prompt=prompt, system_prompt=system_prompt)
+
+        # Step 3: Extract any person IDs mentioned in the answer for node highlighting
+        highlight_nodes = [p['v_id'] for p in persons if p['v_id'] in answer]
+
+        return jsonify({"response": answer, "highlight_nodes": highlight_nodes}), 200
+
     except Exception as e:
-        return jsonify({"status": "error", "message": str(e)}), 500
+        return jsonify({"response": f"Error: {str(e)}", "highlight_nodes": []}), 500
 
 @ai_bp.route("/assess_escalation/<person_id>", methods=["GET"])
 def assess_escalation(person_id):
