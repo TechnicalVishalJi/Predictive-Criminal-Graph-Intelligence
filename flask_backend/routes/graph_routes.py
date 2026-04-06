@@ -1,7 +1,34 @@
 from flask import Blueprint, jsonify
 from services.tigergraph_client import get_tg_connection
+import math, random
 
 graph_bp = Blueprint("graph", __name__)
+
+# Spatial zone centers for each gang cluster (units in 3D space).
+# Keeps isolated graph components from all initializing at origin.
+GANG_ZONES = {
+    "GANG_ALPHA":   {"cx":  350, "cy":  150, "cz":  0},
+    "GANG_BRAVO":   {"cx": -350, "cy":  150, "cz":  0},
+    "GANG_CHARLIE": {"cx":    0, "cy": -350, "cz":  0},
+    "LONE_WOLVES":  {"cx":    0, "cy":  350, "cz":  200},
+}
+JITTER = 80  # Random spread within each zone so nodes don't stack
+
+def get_initial_position(node_id: str) -> dict:
+    """Derive a spatial starting position from the node's gang prefix."""
+    for gang_key, zone in GANG_ZONES.items():
+        if gang_key in node_id:
+            return {
+                "x": zone["cx"] + random.uniform(-JITTER, JITTER),
+                "y": zone["cy"] + random.uniform(-JITTER, JITTER),
+                "z": zone["cz"] + random.uniform(-JITTER, JITTER),
+            }
+    # Fallback for any unknown node — place randomly near centre
+    return {
+        "x": random.uniform(-100, 100),
+        "y": random.uniform(-100, 100),
+        "z": random.uniform(-100, 100),
+    }
 
 @graph_bp.route("/network", methods=["GET"])
 def get_full_network():
@@ -20,37 +47,47 @@ def get_full_network():
         persons = conn.getVertices("Person")
         for p in persons:
             attrs = p.get("attributes", {})
+            pos = get_initial_position(p["v_id"])
             nodes.append({
                 "id": p["v_id"],
                 "type": "Person",
                 "label": attrs.get("full_name", p["v_id"]),
                 "risk_score": round(attrs.get("risk_score", 0), 1),
+                **pos,
             })
 
         # --- Fetch all Accounts ---
         accounts = conn.getVertices("Account")
         for a in accounts:
             attrs = a.get("attributes", {})
+            pos = get_initial_position(a["v_id"])
             nodes.append({
                 "id": a["v_id"],
                 "type": "Account",
                 "label": f"{attrs.get('bank_name', 'Bank')} •••{a['v_id'][-6:]}",
                 "bank_name": attrs.get("bank_name", ""),
+                **pos,
             })
 
         # --- Fetch all Devices ---
         devices = conn.getVertices("Device")
         for d in devices:
             attrs = d.get("attributes", {})
+            pos = get_initial_position(d["v_id"])
             nodes.append({
                 "id": d["v_id"],
                 "type": "Device",
                 "label": attrs.get("phone_number", d["v_id"]),
                 "phone_number": attrs.get("phone_number", ""),
+                **pos,
             })
 
         # --- Fetch edges by iterating each Person ---
         # getEdges(sourceVertexType, sourceVertexId) returns all edges from that vertex
+        # NOTE: INVOLVED_IN edges (to Event nodes) are excluded here because Event vertices
+        # are not rendered in the 3D graph — they are fetched separately via /api/target/<id>.
+        # Including them would create 29 ghost origin-pinned nodes breaking the visualization.
+        VISUAL_EDGE_TYPES = {"OWNS_ACCOUNT", "USES_DEVICE", "ASSOCIATES_WITH"}
         for p in persons:
             pid = p["v_id"]
             try:
@@ -59,6 +96,8 @@ def get_full_network():
                     src = pid
                     tgt = e.get("to_id", "")
                     etype = e.get("e_type", "")
+                    if etype not in VISUAL_EDGE_TYPES:
+                        continue  # Skip INVOLVED_IN and any future non-visual edges
                     key = f"{src}-{etype}-{tgt}"
                     if key not in seen_links and tgt:
                         seen_links.add(key)

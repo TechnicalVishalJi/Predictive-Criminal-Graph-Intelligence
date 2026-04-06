@@ -54,6 +54,20 @@ export default function GraphMap({
       .finally(() => setLoading(false))
   }, [onDataLoaded])
 
+  // Tune d3-force-3d simulation once data is loaded:
+  // - Remove center gravity so isolated clusters don't all pull toward origin
+  // - Crank up many-body repulsion so separate clusters push apart
+  useEffect(() => {
+    if (!fgRef.current || graphData.nodes.length === 0) return
+    const fg = fgRef.current
+    fg.d3Force('center', null)           // remove center-pull
+    fg.d3Force('charge').strength(-220)  // stronger repulsion between all nodes
+    if (fg.d3Force('link')) {
+      fg.d3Force('link').distance(60).strength(0.5) // relax link pull a bit
+    }
+    fg.d3ReheatSimulation()              // restart sim with new forces
+  }, [graphData])
+
   // Search effect
   useEffect(() => {
     if (!searchQuery || !fgRef.current || graphData.nodes.length === 0) return
@@ -224,8 +238,8 @@ export default function GraphMap({
         backgroundColor="#07070a"
         showNavInfo={false}
         nodeLabel={getTooltip}
-        cooldownTicks={120}
-        // Removed onEngineStop which explicitly hijacked the camera's zoom scale
+        warmupTicks={120}
+        cooldownTicks={200}
       />
     </div>
   )
