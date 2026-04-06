@@ -44,7 +44,7 @@ function App() {
       />
 
       {/* Left Panel - Entity Inspector */}
-      <EntityInspector node={selectedNode} />
+      <EntityInspector node={selectedNode} graphData={graphData} />
 
       {/* Right Panel - AI Copilot */}
       <AICopilot onHighlight={handleHighlight} />

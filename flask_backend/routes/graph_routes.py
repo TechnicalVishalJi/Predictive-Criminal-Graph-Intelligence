@@ -14,8 +14,9 @@ def get_full_network():
 
         nodes = []
         links = []
+        seen_links = set()  # Deduplicate edges
 
-        # --- Persons ---
+        # --- Fetch all Persons ---
         persons = conn.getVertices("Person")
         for p in persons:
             attrs = p.get("attributes", {})
@@ -23,21 +24,21 @@ def get_full_network():
                 "id": p["v_id"],
                 "type": "Person",
                 "label": attrs.get("full_name", p["v_id"]),
-                "risk_score": attrs.get("risk_score", 0),
+                "risk_score": round(attrs.get("risk_score", 0), 1),
             })
 
-        # --- Accounts ---
+        # --- Fetch all Accounts ---
         accounts = conn.getVertices("Account")
         for a in accounts:
             attrs = a.get("attributes", {})
             nodes.append({
                 "id": a["v_id"],
                 "type": "Account",
-                "label": f"{attrs.get('bank_name', 'Bank')} • {a['v_id'][-6:]}",
+                "label": f"{attrs.get('bank_name', 'Bank')} •••{a['v_id'][-6:]}",
                 "bank_name": attrs.get("bank_name", ""),
             })
 
-        # --- Devices ---
+        # --- Fetch all Devices ---
         devices = conn.getVertices("Device")
         for d in devices:
             attrs = d.get("attributes", {})
@@ -48,31 +49,39 @@ def get_full_network():
                 "phone_number": attrs.get("phone_number", ""),
             })
 
-        # --- Edges: ASSOCIATES_WITH ---
-        aw_edges = conn.getEdges("Person", sourceEdgeType="ASSOCIATES_WITH")
-        for e in aw_edges:
-            links.append({"source": e["from_id"], "target": e["to_id"], "type": "ASSOCIATES_WITH"})
-
-        # --- Edges: OWNS_ACCOUNT ---
-        oa_edges = conn.getEdges("Person", sourceEdgeType="OWNS_ACCOUNT")
-        for e in oa_edges:
-            links.append({"source": e["from_id"], "target": e["to_id"], "type": "OWNS_ACCOUNT"})
-
-        # --- Edges: USES_DEVICE ---
-        ud_edges = conn.getEdges("Person", sourceEdgeType="USES_DEVICE")
-        for e in ud_edges:
-            links.append({"source": e["from_id"], "target": e["to_id"], "type": "USES_DEVICE"})
+        # --- Fetch edges by iterating each Person ---
+        # getEdges(sourceVertexType, sourceVertexId) returns all edges from that vertex
+        for p in persons:
+            pid = p["v_id"]
+            try:
+                edges = conn.getEdges("Person", pid)
+                for e in edges:
+                    src = pid
+                    tgt = e.get("to_id", "")
+                    etype = e.get("e_type", "")
+                    key = f"{src}-{etype}-{tgt}"
+                    if key not in seen_links and tgt:
+                        seen_links.add(key)
+                        links.append({
+                            "source": src,
+                            "target": tgt,
+                            "type": etype,
+                        })
+            except Exception:
+                pass  # Skip if this person has no edges
 
         return jsonify({"nodes": nodes, "links": links}), 200
 
     except Exception as e:
+        import traceback
+        traceback.print_exc()
         return jsonify({"error": str(e)}), 500
 
 
 @graph_bp.route("/target/<person_id>", methods=["GET"])
 def get_target(person_id):
     """
-    Returns 1-hop data for a specific person node (used by mobile app).
+    Returns 1-hop data for a specific person node.
     """
     try:
         conn = get_tg_connection()
@@ -81,10 +90,24 @@ def get_target(person_id):
             return jsonify({"error": "Person not found"}), 404
 
         attrs = vertex[0].get("attributes", {})
+        edges = conn.getEdges("Person", person_id)
+
+        connections = {"accounts": [], "devices": [], "associates": []}
+        for e in edges:
+            etype = e.get("e_type", "")
+            tgt = e.get("to_id", "")
+            if etype == "OWNS_ACCOUNT":
+                connections["accounts"].append(tgt)
+            elif etype == "USES_DEVICE":
+                connections["devices"].append(tgt)
+            elif etype == "ASSOCIATES_WITH":
+                connections["associates"].append(tgt)
+
         return jsonify({
             "id": person_id,
             "full_name": attrs.get("full_name", "Unknown"),
             "risk_score": attrs.get("risk_score", 0),
+            "connections": connections,
         }), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 500
@@ -92,9 +115,6 @@ def get_target(person_id):
 
 @graph_bp.route("/analyze_syndicate/<person_id>", methods=["GET"])
 def analyze_syndicate(person_id):
-    """
-    Mock syndicate analysis endpoint - real PageRank GSQL query to be installed.
-    """
     return jsonify({
         "status": "success",
         "data": {
