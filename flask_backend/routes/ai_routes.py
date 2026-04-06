@@ -1,7 +1,6 @@
 from flask import Blueprint, request, jsonify, make_response
 from services.ai_rest import get_gemini_embedding, generate_groq_completion
 from services.tigergraph_client import get_tg_connection
-from services.dossier_generator import create_dossier_pdf
 
 ai_bp = Blueprint("ai", __name__)
 
@@ -91,21 +90,5 @@ def assess_escalation(person_id):
         assessment = generate_groq_completion(prompt=prompt, system_prompt="You are a criminal profiling AI estimating trajectory based on historical network data. Be brief.")
         
         return jsonify({"status": "success", "assessment": assessment}), 200
-    except Exception as e:
-        return jsonify({"status": "error", "message": str(e)}), 500
-
-@ai_bp.route("/dossier/generate/<person_id>", methods=["GET"])
-def generate_dossier(person_id):
-    try:
-        person_data = {"name": f"Suspect_{person_id}"}
-        network_data = "This individual is linked to 5 dummy accounts and exhibits high centrality indicative of a money laundering node. Trajectory assesses escalation to offshore wire fraud."
-        risk_score = 88.5
-        
-        pdf_bytes = create_dossier_pdf(person_data, network_data, risk_score)
-        
-        response = make_response(pdf_bytes)
-        response.headers.set('Content-Type', 'application/pdf')
-        response.headers.set('Content-Disposition', 'attachment', filename=f"{person_id}_dossier.pdf")
-        return response
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500

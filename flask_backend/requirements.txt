@@ -7,3 +7,6 @@ gunicorn
 python-dotenv
 typing_extensions
 Faker
+networkx
+numpy
+scipy

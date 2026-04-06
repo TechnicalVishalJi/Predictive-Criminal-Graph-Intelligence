@@ -101,7 +101,7 @@ def simulate_arrest_disruption(person_id: str):
     fracture_increase = final_components - initial_components
     
     # If the network breaks into more components, operational capacity drops drastically
-    capacity_loss = min(100, (impact_score * 1000) + (fracture_increase * 15))
+    capacity_loss = min(100, (impact_score * 300) + (fracture_increase * 10))
     if capacity_loss < 5: capacity_loss = 5 # Minimum disruption
     
     return {

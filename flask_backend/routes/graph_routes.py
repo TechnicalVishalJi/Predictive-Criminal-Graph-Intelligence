@@ -149,3 +149,23 @@ def simulate_disruption(person_id):
         return jsonify({"status": "success", "data": disruption_data}), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+from flask import send_file
+from services.dossier_generator import generate_dossier_pdf
+
+@graph_bp.route("/dossier/generate/<person_id>", methods=["GET"])
+def download_dossier(person_id):
+    """
+    Synthesizes a full formal law enforcement PDF document containing the node's profile,
+    threat levels, and mathematical 1-hop dependencies.
+    """
+    try:
+        pdf_buffer = generate_dossier_pdf(person_id)
+        return send_file(
+            pdf_buffer,
+            as_attachment=True,
+            download_name=f"NEXUS_DOSSIER_{person_id}.pdf",
+            mimetype="application/pdf"
+        )
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500

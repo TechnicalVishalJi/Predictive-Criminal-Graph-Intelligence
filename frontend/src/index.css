@@ -201,22 +201,26 @@ body {
   padding-right: 8px;
 }
 
-/* Scrollbar Styling for Chat */
-.chat-container::-webkit-scrollbar {
+/* Scrollbar Styling for Chat and Side Panel */
+.chat-container::-webkit-scrollbar,
+.side-panel.left::-webkit-scrollbar {
   width: 6px;
 }
 
-.chat-container::-webkit-scrollbar-track {
+.chat-container::-webkit-scrollbar-track,
+.side-panel.left::-webkit-scrollbar-track {
   background: rgba(0, 0, 0, 0.2);
   border-radius: 4px;
 }
 
-.chat-container::-webkit-scrollbar-thumb {
+.chat-container::-webkit-scrollbar-thumb,
+.side-panel.left::-webkit-scrollbar-thumb {
   background: rgba(255, 255, 255, 0.15);
   border-radius: 4px;
 }
 
-.chat-container::-webkit-scrollbar-thumb:hover {
+.chat-container::-webkit-scrollbar-thumb:hover,
+.side-panel.left::-webkit-scrollbar-thumb:hover {
   background: rgba(0, 240, 255, 0.4);
 }
 

@@ -1,4 +1,4 @@
-import { User, AlertTriangle, CreditCard, Smartphone, Users, Zap, Crosshair, TrendingUp } from 'lucide-react'
+import { User, AlertTriangle, CreditCard, Smartphone, Users, Zap, Crosshair, TrendingUp, Download } from 'lucide-react'
 import { useState, useEffect } from 'react'
 import axios from 'axios'
 
@@ -107,6 +107,11 @@ export default function EntityInspector({
     setLoadingAction(null)
   }
 
+  const handleDownloadDossier = () => {
+    // Triggers direct browser download from Flask API
+    window.open(`${FLASK_API}/api/dossier/generate/${node.id}`, '_blank')
+  }
+
   return (
     <aside className={`glass-panel side-panel left ${isOpen ? 'open' : ''}`} style={{ overflowY: 'auto' }}>
       {node ? (
@@ -207,6 +212,11 @@ export default function EntityInspector({
                 onClick={handleSimulateArrest} 
                 disabled={loadingAction !== null}
                 danger 
+              />
+              <ActionButton 
+                icon={<Download size={14} color="#a78bfa" />} 
+                label="Generate Official PDF Dossier" 
+                onClick={handleDownloadDossier} 
               />
               
               {/* Injecting DOM UI payload for Disruption Simulator result explicitly here per user request */}
