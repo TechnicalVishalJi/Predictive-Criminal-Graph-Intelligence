@@ -1,4 +1,8 @@
-import { User, AlertTriangle, CreditCard, Smartphone, Users } from 'lucide-react'
+import { User, AlertTriangle, CreditCard, Smartphone, Users, Zap, Crosshair, TrendingUp } from 'lucide-react'
+import { useState, useEffect } from 'react'
+import axios from 'axios'
+
+const FLASK_API = 'http://127.0.0.1:5000'
 
 const riskColor = (score) => score > 75 ? '#ff003c' : score > 40 ? '#ff8c00' : '#00f0ff'
 const riskLabel = (score) => score > 75 ? 'CRITICAL THREAT' : score > 40 ? 'ELEVATED THREAT' : 'PERSON OF INTEREST'
@@ -8,10 +12,22 @@ const riskDesc  = (score) => score > 75
   ? 'Known associate with mid-level criminal activity.'
   : 'Fringe connection — under surveillance.'
 
-export default function EntityInspector({ node, graphData }) {
+export default function EntityInspector({ 
+  node, graphData, 
+  onPredictLinks, onSimulateDisruption, onRiskRecalculated 
+}) {
   const isOpen = !!node
-  const color = node ? riskColor(node.risk_score) : '#00f0ff'
+  const currentRisk = node?.dynamic_risk !== undefined ? node.dynamic_risk : (node?.risk_score || 0)
+  const color = node ? riskColor(currentRisk) : '#00f0ff'
 
+  const [loadingAction, setLoadingAction] = useState(null)
+  const [disruptionResult, setDisruptionResult] = useState(null)
+
+  // Clear local mathematical result state whenever the clicked node changes
+  useEffect(() => {
+    setDisruptionResult(null)
+  }, [node])
+  
   // Compute 1-hop neighbors from graph data
   const neighbors = { accounts: [], devices: [], associates: [] }
   if (node && graphData?.links && graphData?.nodes) {
@@ -34,8 +50,65 @@ export default function EntityInspector({ node, graphData }) {
     })
   }
 
+  const handlePredictLinks = async () => {
+    setLoadingAction('predict')
+    try {
+      const res = await axios.get(`${FLASK_API}/api/predict_links/${node.id}`)
+      if (res.data.predictions && onPredictLinks) {
+        onPredictLinks(res.data.predictions.map(p => ({
+          source: node.id,
+          target: p.target_id,
+          confidence: p.confidence_score
+        })))
+      }
+    } catch (err) {
+      console.error('Prediction failed', err)
+    }
+    setLoadingAction(null)
+  }
+
+  const handleRecalculateRisk = async () => {
+    setLoadingAction('risk')
+    try {
+      const res = await axios.get(`${FLASK_API}/api/analyze_risk/${node.id}`)
+      if (res.data.data && onRiskRecalculated) {
+        onRiskRecalculated(node.id, res.data.data.new_risk_score)
+      }
+    } catch (err) {
+      console.error('Risk update failed', err)
+    }
+    setLoadingAction(null)
+  }
+
+  const handleSimulateArrest = async () => {
+    setLoadingAction('arrest')
+    try {
+      const res = await axios.get(`${FLASK_API}/api/simulate_disruption/${node.id}`)
+      if (res.data.data) {
+        // Save to local UI to show below the button instead of annoying browser alerts
+        setDisruptionResult({
+          capacityLoss: res.data.data.capacity_loss_percent,
+          isolatedLinks: res.data.data.isolated_nodes.length,
+          centrality: res.data.data.betweenness_centrality
+        })
+        
+        // Pass up to 3D graph to visually fracture the network
+        if (onSimulateDisruption) {
+          onSimulateDisruption({
+            arrestedId: node.id,
+            isolatedNodes: res.data.data.isolated_nodes,
+            capacityLoss: res.data.data.capacity_loss_percent
+          })
+        }
+      }
+    } catch (err) {
+      console.error('Simulation failed', err)
+    }
+    setLoadingAction(null)
+  }
+
   return (
-    <aside className={`glass-panel side-panel left ${isOpen ? 'open' : ''}`}>
+    <aside className={`glass-panel side-panel left ${isOpen ? 'open' : ''}`} style={{ overflowY: 'auto' }}>
       {node ? (
         <>
           {/* Header */}
@@ -46,32 +119,32 @@ export default function EntityInspector({ node, graphData }) {
               {node.type === 'Device' && '📱 Communication Device'}
             </div>
             <div className="inspector-name">{node.label}</div>
-            {node.risk_score !== undefined && (
+            {currentRisk !== undefined && (
               <div className="risk-badge" style={{ color, borderColor: color, background: `${color}15`, marginBottom: '4px' }}>
                 <AlertTriangle size={11} style={{ display: 'inline', marginRight: '4px' }} />
-                {riskLabel(node.risk_score)}
+                {riskLabel(currentRisk)}
               </div>
             )}
-            {node.risk_score !== undefined && (
+            {currentRisk !== undefined && (
               <div style={{ fontSize: '11px', color: 'var(--text-muted)', lineHeight: 1.4, marginTop: '6px' }}>
-                {riskDesc(node.risk_score)}
+                {riskDesc(currentRisk)}
               </div>
             )}
           </div>
 
           {/* Risk Meter */}
-          {node.risk_score !== undefined && (
+          {currentRisk !== undefined && (
             <div>
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', color: 'var(--text-muted)', marginBottom: '6px' }}>
                 <span>THREAT SCORE TO SOCIETY</span>
-                <span style={{ color, fontWeight: 700 }}>{node.risk_score.toFixed(1)} / 100</span>
+                <span style={{ color, fontWeight: 700 }}>{currentRisk.toFixed(1)} / 100</span>
               </div>
               <div style={{ background: 'rgba(255,255,255,0.05)', borderRadius: '4px', overflow: 'hidden', height: '6px' }}>
                 <div style={{
-                  width: `${node.risk_score}%`, height: '100%',
+                  width: `${Math.min(100, currentRisk)}%`, height: '100%',
                   background: `linear-gradient(90deg, ${color}66, ${color})`,
                   borderRadius: '4px', boxShadow: `0 0 8px ${color}`,
-                  transition: 'width 0.8s cubic-bezier(0.16,1,0.3,1)',
+                  transition: 'width 0.8s cubic-bezier(0.16,1,0.3,1), background 0.8s ease',
                 }} />
               </div>
             </div>
@@ -86,7 +159,6 @@ export default function EntityInspector({ node, graphData }) {
 
           {/* 1-hop connections */}
           {node.type === 'Person' && (neighbors.associates.length > 0 || neighbors.accounts.length > 0 || neighbors.devices.length > 0) && (() => {
-            // Deduplicate items to fix the double-associate graph data replication bug
             const uniqueAssociates = [...new Map(neighbors.associates.map(n => [n.id, n])).values()]
             const uniqueAccounts = [...new Map(neighbors.accounts.map(n => [n.id, n])).values()]
             const uniqueDevices = [...new Map(neighbors.devices.map(n => [n.id, n])).values()]
@@ -110,9 +182,60 @@ export default function EntityInspector({ node, graphData }) {
             )
           })()}
 
-          <div style={{ borderTop: '1px solid var(--glass-border)', marginTop: 'auto', paddingTop: '12px', fontSize: '11px', color: 'var(--text-muted)', textAlign: 'center' }}>
-            Ask the AI Co-Pilot for deeper analysis →
-          </div>
+          {/* ADVANCED ANALYTICS CONTROLS */}
+          {node.type === 'Person' && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '10px' }}>
+              <div style={{ borderTop: '1px solid var(--glass-border)', paddingTop: '12px', fontSize: '10px', color: 'var(--neon-cyan)', textTransform: 'uppercase', letterSpacing: '1px', fontWeight: 700, marginBottom: '4px' }}>
+                Advanced Capabilities
+              </div>
+              
+              <ActionButton 
+                icon={<Zap size={14} color="#eab308" />} 
+                label={loadingAction === 'predict' ? 'Scanning Graph...' : "Predict Future Links"} 
+                onClick={handlePredictLinks} 
+                disabled={loadingAction !== null} 
+              />
+              <ActionButton 
+                icon={<TrendingUp size={14} color="#00f0ff" />} 
+                label={loadingAction === 'risk' ? 'Calculating...' : "Dynamic Risk Recalculate"} 
+                onClick={handleRecalculateRisk} 
+                disabled={loadingAction !== null} 
+              />
+              <ActionButton 
+                icon={<Crosshair size={14} color="#ff003c" />} 
+                label={loadingAction === 'arrest' ? 'Simulating...' : "Simulate Target Arrest"} 
+                onClick={handleSimulateArrest} 
+                disabled={loadingAction !== null}
+                danger 
+              />
+              
+              {/* Injecting DOM UI payload for Disruption Simulator result explicitly here per user request */}
+              {disruptionResult !== null && (
+                <div style={{
+                  marginTop: '8px', padding: '12px', borderRadius: '8px',
+                  background: 'rgba(255,0,60,0.1)', border: '1px solid rgba(255,0,60,0.3)',
+                  color: '#e0e0ff', fontSize: '12px', lineHeight: 1.5
+                }}>
+                  <div style={{ color: '#ff003c', fontWeight: 800, fontSize: '11px', marginBottom: '6px', letterSpacing: '1px' }}>
+                    🚨 ARREST SIMULATION RESULTS
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid rgba(255,255,255,0.08)', paddingBottom: '4px', marginBottom: '4px' }}>
+                    <span style={{ color: 'var(--text-muted)' }}>Target Betweenness:</span> 
+                    <span style={{ fontWeight: 700 }}>{disruptionResult.centrality}</span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid rgba(255,255,255,0.08)', paddingBottom: '4px', marginBottom: '4px' }}>
+                    <span style={{ color: 'var(--text-muted)' }}>Isolated Assets:</span> 
+                    <span style={{ fontWeight: 700 }}>{disruptionResult.isolatedLinks}</span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span style={{ color: 'var(--text-muted)' }}>Syndicate Capacity Drop:</span> 
+                    <span style={{ color: '#ff003c', fontWeight: 800 }}>-{disruptionResult.capacityLoss}%</span>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
         </>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', gap: '16px', color: 'var(--text-muted)' }}>
@@ -123,6 +246,29 @@ export default function EntityInspector({ node, graphData }) {
         </div>
       )}
     </aside>
+  )
+}
+
+function ActionButton({ icon, label, onClick, disabled, danger }) {
+  return (
+    <button 
+      onClick={onClick} 
+      disabled={disabled}
+      style={{
+        display: 'flex', alignItems: 'center', gap: '10px',
+        width: '100%', padding: '10px 14px',
+        background: danger ? 'rgba(255,0,60,0.1)' : 'rgba(255,255,255,0.05)',
+        border: `1px solid ${danger ? 'rgba(255,0,60,0.3)' : 'var(--glass-border)'}`,
+        borderRadius: '8px', cursor: disabled ? 'not-allowed' : 'pointer',
+        color: danger ? '#ff003c' : 'var(--text-primary)',
+        fontSize: '12px', fontWeight: 600, transition: 'all 0.2s',
+        opacity: disabled ? 0.5 : 1
+      }}
+      onMouseEnter={e => { if(!disabled) e.currentTarget.style.background = danger ? 'rgba(255,0,60,0.2)' : 'rgba(255,255,255,0.1)' }}
+      onMouseLeave={e => { if(!disabled) e.currentTarget.style.background = danger ? 'rgba(255,0,60,0.1)' : 'rgba(255,255,255,0.05)' }}
+    >
+      {icon} {label}
+    </button>
   )
 }
 

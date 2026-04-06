@@ -112,6 +112,12 @@ These will be securely injected into Render's dashboard.
 *   **Logic:** Fetches the chronological list of crimes and transactions linked to `person_id`. Feeds this exact structural timeline into Groq (Meta-Llama) to analyze pattern escalation (e.g., escalating from petty theft to organized racketeering) and suggest probable next actions and targets based on typical syndicate lifecycles.
 *   **Response:** JSON structured assessment report (Timeline analysis, Risk Score, Probable Next Activities).
 
+#### H. Predictive NetworkX Analytics Engine (V2 addition)
+*   **Module:** `analytics.py` (Powered by NetworkX, Numpy, Scipy)
+*   **`GET /api/predict_links/<id>`**: Re-casts TigerGraph topology into NetworkX physics to calculate Jaccard and Adamic-Adar scores across unconnected nodes for temporal forecasting.
+*   **`GET /api/analyze_risk/<id>`**: Normalizes global PageRank centrality network influence algorithms strictly bound between 0-100 to map dynamic operational risk independent of explicit criminal records.
+*   **`GET /api/simulate_disruption/<id>`**: Processes Betweenness Centrality limits. Simulates Node destruction, recalculates total cluster structural integrity, and returns precise Capacity Loss metric drops and isolated asset IDs.
+
 ---
 
 ## User Review Required

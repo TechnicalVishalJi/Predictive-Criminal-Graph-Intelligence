@@ -52,7 +52,8 @@ This outline translates your implementation plans into a highly compelling, pitc
 | **Suspect Search Paradigm** | Exact Text Match Only | Semantic Vector Search (Gemini) |
 | **Intelligence Querying** | Strict SQL / No NLP | Enterprise GraphRAG via Groq (Meta-Llama) |
 | **Temporal Escalation Assessment** | Reactive (Past data only) | AI-driven timeline analysis to suggest probable escalation paths & future targets |
-| **Network Analysis** | Manual Human Intelligence | Automated PageRank / Kingpin Discovery |
+| **Data Science Analytics** | Basic Statistical Counting | Dynamic PageRank Threat Vectors & Simulated Betweenness Arrests |
+| **Future Crime Prevention** | Non-Existent | Temporal Jaccard Link Prediction forecasting pre-incident associations |
 | **Reporting & Briefing** | Manual typing (Hours) | 1-Click Automated PDF Dossier Gen |
 
 ---

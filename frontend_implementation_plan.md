@@ -78,6 +78,13 @@ To ensure zero loading delays during high-stakes investigations, the entire Web 
   - **Devices** this suspect uses
 - **Trigger:** Click any node in the 3D graph
 
+### Feature 2.5: Intelligence Analytics Controls
+- **Location:** Inside the Suspect Dossier (Left Panel), physically positioned natively inside the `EntityInspector.jsx` component below the known connections limit.
+- **What it does:** Adds three core interactive Buttons firing Axios requests directly to the mathematical Flask analytical endpoints:
+  - **Predict Future Links** triggers temporal Jaccard math and alters the `GraphMap` to spawn pulsating, glowing 1.6x sized yellow prediction targets.
+  - **Dynamic Risk Recalculate** triggers PageRank influence parsing and drops math state directly back to the visual renderer to update the selected orb's active Threat Level / Color without reloading.
+  - **Simulate Target Arrest** triggers Betweenness Centrality mathematics. The UI traps the `capacityLoss` response to render a Red Alert UI block cleanly in the DOM without using a browser alert, while the 3D WebGL engine shatters the targeted node into a dark wireframe simulation mode.
+
 ### Feature 3: Global Search (Top Navigation Bar)
 - **Location:** Center of top navigation bar
 - **What it does:** Type a suspect name → the 3D camera **smoothly flies** to that node and centers on it

@@ -113,14 +113,39 @@ def get_target(person_id):
         return jsonify({"error": str(e)}), 500
 
 
-@graph_bp.route("/analyze_syndicate/<person_id>", methods=["GET"])
-def analyze_syndicate(person_id):
-    return jsonify({
-        "status": "success",
-        "data": {
-            "kingpin_detected": True,
-            "kingpin_node_id": person_id,
-            "centrality_score": 0.89,
-            "community_size": 14,
-        }
-    }), 200
+from services.analytics import predict_future_links, simulate_arrest_disruption, calculate_dynamic_risk
+
+@graph_bp.route("/predict_links/<person_id>", methods=["GET"])
+def predict_links(person_id):
+    """
+    Uses NetworkX Jaccard Similarity graph algorithms
+    to predict future associations.
+    """
+    try:
+        predictions = predict_future_links(person_id)
+        return jsonify({"status": "success", "predictions": predictions}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@graph_bp.route("/analyze_risk/<person_id>", methods=["GET"])
+def analyze_risk(person_id):
+    """
+    Dynamically recalculates risk score using PageRank centrality mathematics.
+    """
+    try:
+        risk_data = calculate_dynamic_risk(person_id)
+        return jsonify({"status": "success", "data": risk_data}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@graph_bp.route("/simulate_disruption/<person_id>", methods=["GET"])
+def simulate_disruption(person_id):
+    """
+    Calculates Betweenness Centrality on target node and measures the network
+    fracture/cascade if this node is removed (arrested).
+    """
+    try:
+        disruption_data = simulate_arrest_disruption(person_id)
+        return jsonify({"status": "success", "data": disruption_data}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500

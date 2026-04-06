@@ -65,3 +65,11 @@ An upgraded, enterprise-grade architecture for an Aatmanirbhar (homegrown) inves
 Both UI platforms will reside inside the unified Git repository in separate directories.
 *   **Command Center UI (Web)**: Built using **ReactJS** to handle the heavy 3D DOM manipulations (`react-force-graph-3d`) and data analysis rendering.
 *   **Field Officer App (Mobile)**: Built using **Flutter** for cross-platform (iOS/Android) mobile native performance.
+
+---
+
+## The Advanced Analytics Engine (Added in V2)
+To prove the system's predictive intelligence to hackathon judges, three complex heuristic algorithms have been built into the platform:
+1. **Temporal Link Prediction:** Uses local Jaccard Similarity and Adamic-Adar calculations via NetworkX to map high-probability future associations mathematically before they happen.
+2. **Dynamic Risk Scoring:** Abandons static data by calculating a real-time Risk Vector strictly correlated to normalized PageRank centrality influence dynamically updating upon new Intel.
+3. **Network Disruption Simulator:** Leverages edge Betweenness Centrality testing to simulate targeted arrests, dynamically dropping vertices and computing subsequent structural capacity losses and isolated network clusters in real time.
