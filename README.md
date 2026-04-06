@@ -55,7 +55,24 @@ With a single click on the Command Center, Nexus isolates the targeted suspect, 
 
 ---
 
+## Data Sources & Methodology
+
+> *"Due to the highly sensitive and classified nature of actual law enforcement records (CCTNS, CDRs, and banking transactions), NEXUS utilizes a custom-built, temporally-aware synthetic data generator.*
+>
+> *However, to ensure the algorithms are tested against real-world conditions, this dataset is not randomly generated. It is meticulously modeled after declassified topological patterns found in NIA charge sheets and NCRB crime statistics.*
+>
+> *The dataset accurately replicates complex Indian criminal behaviors, including:*
+> - *Multi-hop Hawala financial layering chains*
+> - *Burner phone clustering and dormancy patterns*
+> - *Shell company director networks*
+> - *Syndicate recruitment and growth over a 12-month temporal axis*
+>
+> *This ensures that our graph algorithms and predictors (PageRank, Betweenness Centrality, and Temporal Link Prediction) operate on realistic adversarial data structures, proving the system's efficacy for real-world deployment without compromising civilian privacy."*
+
+---
+
 ## System Architecture Diagram
+
 
 Below is the macro-level routing logic demonstrating our microservice capability between the independent Vercel, Render, and TigerGraph cloud clusters.
 
