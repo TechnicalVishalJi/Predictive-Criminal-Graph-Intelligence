@@ -1,33 +1,37 @@
 import os
+import time
+import pyTigerGraph as tg
 from dotenv import load_dotenv
 
-# Load the keys from .env
 load_dotenv()
 
-from services.tigergraph_client import get_tg_connection
+server_url = os.environ.get("TG_HOSTNAME", "http://127.0.0.1")
+username = os.environ.get("TG_USERNAME", "tigergraph")
+password = os.environ.get("TG_PASSWORD", "tigergraph")
+graph_name = os.environ.get("TG_GRAPHNAME", "CriminalGraph")
 
-def test_connection():
-    print("--------------------------------------------------")
-    print(f"Testing connection to: {os.environ.get('TG_HOSTNAME')}")
-    print(f"Graph Name: {os.environ.get('TG_GRAPHNAME')}")
-    print("--------------------------------------------------")
+print(f"Testing Unrestricted Local Connection to {server_url} ...")
+
+try:
+    conn = tg.TigerGraphConnection(
+        host=server_url, 
+        username=username, 
+        password=password,
+        graphname=graph_name
+    )
     
-    try:
-        conn = get_tg_connection()
-        print("✅ SUCCESS! Authentication passed and Token received.")
-        
-        # Ping the server to ensure active communication
-        ping_res = conn.echo()
-        print(f"✅ SUCCESS! Server responded with: {ping_res}")
-        print("--------------------------------------------------")
-        print("TigerGraph is ready for Project Nexus!")
-        
-    except Exception as e:
-        print("❌ FAILED to connect.")
-        print("Error details:")
-        print(str(e))
-        print("--------------------------------------------------")
-        print("Check your .env file to ensure TG_HOSTNAME has https://, and username/password are perfectly correct.")
+    # We test an endpoint that doesn't rely on the Graph Schema existing yet
+    print("Checking Database Engine Status...")
+    endpoints = conn.getEndpoints()
+    
+    print("---------------------------------------")
+    print("✅ LOCAL DATABASE ENGINE CONNECTED FLAWLESSLY!")
+    print(f"Engine is Live. Found {len(endpoints)} available REST endpoints.")
+    print("---------------------------------------")
 
-if __name__ == "__main__":
-    test_connection()
+except Exception as e:
+    print("---------------------------------------")
+    print("❌ CONNECTION FAILED:")
+    print("If it says '502 Bad Gateway', the Docker Engine is still booting up (Wait 2 mins).")
+    print("Error Details:", str(e))
+    print("---------------------------------------")

@@ -1,43 +1,28 @@
 import os
 import pyTigerGraph as tg
-import requests
 from dotenv import load_dotenv
 
-# Load .env variables locally
 load_dotenv()
-
-class BearerAuth(requests.auth.AuthBase):
-    """ Custom Auth Interceptor to bypass pyTigerGraph Token bugs """
-    def __init__(self, token):
-        self.token = token
-    def __call__(self, r):
-        r.headers["Authorization"] = "Bearer " + self.token
-        return r
 
 def get_tg_connection():
     """
-    Initializes and returns a pyTigerGraph connection using modern Cloud API Tokens 
-    while natively patching the _cached_token_auth exception.
+    Connects flawlessly to the unrestricted Local TigerGraph Docker Engine.
+    Because it runs locally, we DO NOT need Secrets, Tokens, or API Keys.
+    Pure localhost connectivity.
     """
-    hostname = os.environ.get("TG_HOSTNAME")
+    hostname = os.environ.get("TG_HOSTNAME", "http://127.0.0.1")
+    username = os.environ.get("TG_USERNAME", "tigergraph")
+    password = os.environ.get("TG_PASSWORD", "tigergraph")
     graphname = os.environ.get("TG_GRAPHNAME", "CriminalGraph")
-    
-    # We will use the TG_TOKEN variable!
-    token = os.environ.get("TG_TOKEN") 
-    
-    if not hostname or not token:
-        raise ValueError("Missing TG_HOSTNAME or TG_TOKEN in environment variables.")
 
-    # Setup connection
     conn = tg.TigerGraphConnection(
         host=hostname,
-        graphname=graphname,
-        apiToken=token
+        username=username,
+        password=password,
+        graphname=graphname
     )
     
-    # 🔴 FIX FOR pyTigerGraph Attribute Error 🔴
-    # We natively inject the valid Bearer authentication HTTP structure so conn.echo() and 
-    # conn.upsertVertex() do not crash looking for the legacy missing attribute.
-    conn._cached_token_auth = BearerAuth(token)
+    # Notice: NO conn.getToken() and NO conn.createSecret() required!
+    # Local docker natively bypasses RESTPP auth until you manually enable it.
     
     return conn

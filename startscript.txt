@@ -1,0 +1,1 @@
+docker run -d -p 9000:9000 -p 14240:14240 --name tigergraph --ulimit nofile=1000000:1000000 -v data:/var/lib/tigergraph tigergraph/community:4.2.2
