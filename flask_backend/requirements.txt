@@ -1,0 +1,9 @@
+Flask
+Flask-CORS
+requests
+pyTigerGraph
+reportlab
+gunicorn
+python-dotenv
+typing_extensions
+Faker
