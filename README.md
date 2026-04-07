@@ -18,7 +18,7 @@
 
 ---
 
-## 🎬 Live Demo
+## Demo Video
 
 <div align="center">
   <a href="https://youtu.be/niMEMDzLGrU" target="_blank">
