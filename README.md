@@ -18,7 +18,22 @@
 
 ---
 
+## 🎬 Live Demo
+
+<div align="center">
+  <a href="https://youtu.be/niMEMDzLGrU" target="_blank">
+    <img src="https://img.youtube.com/vi/niMEMDzLGrU/maxresdefault.jpg" alt="Project Nexus Demo Video" width="80%" style="border-radius: 12px;" />
+  </a>
+  <br /><br />
+  <a href="https://youtu.be/niMEMDzLGrU">
+    <img src="https://img.shields.io/badge/▶ Watch Full Demo-YouTube-red?style=for-the-badge&logo=youtube&logoColor=white" alt="Watch Demo" />
+  </a>
+</div>
+
+---
+
 ## The Core Problem
+
 Modern criminal syndicates do not operate in silos; they maneuver through deeply complex, cross-jurisdictional networks spanning aliases, burner communications, and distributed hawala financial rings. 
 
 However, modern law enforcement infrastructure (such as India's current CCTNS 1.0) inherently relies on rigid, siloed Relational Data structures. 
